@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "@ilovepdf/ilovepdf-nodejs": "^0.3.0",
+    "axios": "^1.8.4",
+    "cors": "^2.8.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "fs": "^0.0.1-security",
+    "multer": "^1.4.5-lts.1",
+    "pdf-lib": "^1.17.1",
+    "pdfkit": "^0.16.0",
+    "pdfmake": "^0.2.18",
+    "puppeteer": "^24.3.1",
+    "xlsx": "^0.18.5"
+  }
+}

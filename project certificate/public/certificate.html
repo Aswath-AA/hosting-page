@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ELGi DOC Form</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; background: url('https://source.unsplash.com/1600x900/?metal,textured') no-repeat center center/cover; }
+        .container { background: linear-gradient(to right, #4b4b4b, #2c2c2c); padding: 30px; border-radius: 10px; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5); width: 500px; text-align: center; color: white; }
+        .logo { font-size: 28px; font-weight: bold; }
+        .logo span { color: red; }
+        .form-group { margin: 15px 0; text-align: left; }
+        label { font-size: 16px; font-weight: bold; display: block; margin-bottom: 5px; }
+        input, select { width: 100%; padding: 10px; border: none; border-radius: 5px; font-size: 16px; }
+        .submit-btn, .download-btn { background-color: red; color: white; padding: 12px; width: 100%; border: none; border-radius: 5px; font-size: 18px; cursor: pointer; margin-top: 10px; }
+        .submit-btn:hover, .download-btn:hover { background-color: darkred; }
+        .button-group { display: flex; gap: 10px; margin-top: 10px; }
+        .download-btn { flex: 1; background-color: #007bff; } 
+        .download-btn:hover { background-color: #0056b3; }
+        .error-message { color: #ff6b6b; font-size: 14px; margin-top: 5px; display: none; }
+        
+        /* Enhanced Popup styles */
+        .popup-container {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(3px);
+        }
+        .popup-content {
+            background: #fff;
+            padding: 25px 30px;
+            border-radius: 12px;
+            width: 320px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            text-align: center;
+            position: relative;
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.3s ease-out;
+        }
+        .popup-container.active .popup-content {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .popup-message {
+            font-size: 16px;
+            line-height: 1.5;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .popup-message.success {
+            color: #28a745;
+        }
+        .popup-message.error {
+            color: #dc3545;
+        }
+        .popup-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+        .popup-progress {
+            height: 4px;
+            background: #f0f0f0;
+            border-radius: 2px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        .popup-progress-bar {
+            height: 100%;
+            width: 100%;
+            background: #28a745;
+            animation: progressBar 2s linear forwards;
+        }
+        @keyframes progressBar {
+            from { width: 100%; }
+            to { width: 0%; }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">ELG<span>i</span></div>
+        <p><em>DOC Form</em></p>
+        <form id="docForm">
+            <div class="form-group">
+                <label for="mode">Mode</label>
+                <select id="mode" name="mode" required>
+                    <option value="EN 53">EN 53</option>
+                    <option value="EN 73">EN 73</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="serialNo">Product Serial No (10 characters)</label>
+                <input type="text" id="serialNo" name="serialNo" 
+                       required 
+                       maxlength="10"
+                       pattern="[A-Za-z0-9]{10}" 
+                       title="Please enter exactly 10 alphanumeric characters">
+                <div id="serialNoError" class="error-message">Serial No must be exactly 10 alphanumeric characters</div>
+            </div>
+            <div class="form-group">
+                <label for="testedDate">Tested Date</label>
+                <input type="date" id="testedDate" name="testedDate" required>
+            </div>
+            <div class="form-group">
+                <label for="year">Year of Manufacturing</label>
+                <input type="text" id="year" name="year" required>
+            </div>
+            <button type="submit" class="submit-btn">Submit</button>
+        </form>
+
+        <!-- PDF & Excel Download Buttons -->
+        <div class="button-group">
+            <button id="downloadPdf" class="download-btn" disabled>Download PDF</button>
+            <button id="downloadExcel" class="download-btn" disabled>Download Excel Sheet</button>
+        </div>
+    </div>
+
+    <!-- Enhanced Popup Container -->
+    <div id="popup" class="popup-container">
+        <div class="popup-content">
+            <div class="popup-icon">✅</div>
+            <p id="popup-message" class="popup-message success">Submitted successfully!</p>
+            <div class="popup-progress">
+                <div class="popup-progress-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set default values when the page loads
+        document.addEventListener("DOMContentLoaded", function() {
+            const today = new Date();
+            
+            // Set today's date as default for testedDate
+            const todayFormatted = today.toISOString().split("T")[0];
+            document.getElementById("testedDate").value = todayFormatted;
+            
+            // Set current year as default for manufacturing year
+            const currentYear = today.getFullYear().toString();
+            document.getElementById("year").value = currentYear;
+            
+            // Initialize serial number validation
+            validateSerialNumber();
+        });
+
+        // Validate serial number input
+        function validateSerialNumber() {
+            const serialNoInput = document.getElementById("serialNo");
+            const errorElement = document.getElementById("serialNoError");
+            const serialNo = serialNoInput.value;
+            
+            // Check if input is exactly 10 alphanumeric characters
+            if (serialNo.length > 0 && (serialNo.length !== 10 || !/^[A-Za-z0-9]{10}$/.test(serialNo))) {
+                errorElement.style.display = "block";
+                serialNoInput.setCustomValidity("Serial No must be 10 alphanumeric characters");
+            } else {
+                errorElement.style.display = "none";
+                serialNoInput.setCustomValidity("");
+            }
+        }
+
+        // Enhanced Popup function
+        function showPopup(message, isError = false) {
+            const popup = document.getElementById("popup");
+            const popupMessage = document.getElementById("popup-message");
+            const popupIcon = document.querySelector('.popup-icon');
+            
+            // Set message and styles
+            popupMessage.textContent = message;
+            popupMessage.className = `popup-message ${isError ? 'error' : 'success'}`;
+            popupIcon.textContent = isError ? '❌' : '✅';
+            
+            // Activate popup
+            popup.classList.add('active');
+            popup.style.display = "flex";
+            
+            // Auto-close after 2 seconds
+            setTimeout(() => {
+                popup.classList.remove('active');
+                setTimeout(() => {
+                    popup.style.display = "none";
+                }, 300);
+            }, 2000);
+        }
+
+        // Add event listeners for serial number validation
+        document.getElementById("serialNo").addEventListener("input", validateSerialNumber);
+        document.getElementById("serialNo").addEventListener("blur", validateSerialNumber);
+
+        document.getElementById("docForm").addEventListener("submit", function(event) {
+            // Validate before submission
+            validateSerialNumber();
+            
+            if (!document.getElementById("serialNo").checkValidity()) {
+                document.getElementById("serialNoError").style.display = "block";
+                event.preventDefault();
+                return;
+            }
+            
+            event.preventDefault(); // Prevent page reload
+        
+            const serialNo = document.getElementById("serialNo").value;
+            const data = {
+                mode: document.getElementById("mode").value,
+                serialNo: serialNo,
+                testedDate: document.getElementById("testedDate").value,
+                year: document.getElementById("year").value
+            };
+        
+            fetch("http://localhost:3000/update-excel", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Network response was not ok");
+                }
+                return response.json();
+            })
+            .then(files => {
+                // Enable the download buttons
+                document.getElementById("downloadPdf").disabled = false;
+                document.getElementById("downloadExcel").disabled = false;
+        
+                // Set file paths and custom filenames
+                const pdfFilename = `${serialNo}_Certificate.pdf`;
+                const excelFilename = `${serialNo}_Certificate.xlsx`;
+                
+                document.getElementById("downloadPdf").setAttribute("data-url", files.pdfPath);
+                document.getElementById("downloadExcel").setAttribute("data-url", files.excelPath);
+                
+                document.getElementById("downloadPdf").setAttribute("download", pdfFilename);
+                document.getElementById("downloadExcel").setAttribute("download", excelFilename);
+                
+                // Show success popup
+                showPopup("Submitted successfully!");
+            })
+            .catch(error => {
+                console.error("❌ Error:", error);
+                showPopup("Error generating files. Please try again.", true);
+            });
+        });
+
+        // Handle PDF download
+        document.getElementById("downloadPdf").addEventListener("click", function() {
+            const url = this.getAttribute("data-url");
+            const filename = this.getAttribute("download") || "Certificate.pdf";
+            if (url) {
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        });
+
+        // Handle Excel download
+        document.getElementById("downloadExcel").addEventListener("click", function() {
+            const url = this.getAttribute("data-url");
+            const filename = this.getAttribute("download") || "Certificate.xlsx";
+            if (url) {
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        });
+    </script>
+</body>
+</html>
