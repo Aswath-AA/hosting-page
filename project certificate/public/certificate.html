@@ -219,8 +219,9 @@
                 testedDate: document.getElementById("testedDate").value,
                 year: document.getElementById("year").value
             };
+          
         
-            fetch("http://localhost:3000/update-excel", {
+            fetch("https://hosting-page.onrender.com/update-excel", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(data)
