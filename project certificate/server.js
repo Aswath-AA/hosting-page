@@ -48,7 +48,7 @@ app.get("/", (req, res) => {
 });
 
 // Handle form submission
-app.post("/update-excel", async (req, res) => {
+app.post("https://hosting-page.onrender.com/update-excel", async (req, res) => {
     try {
         console.log("📌 Received Form Data:", req.body);
 
