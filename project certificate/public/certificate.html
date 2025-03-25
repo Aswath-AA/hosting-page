@@ -219,20 +219,30 @@
                 testedDate: document.getElementById("testedDate").value,
                 year: document.getElementById("year").value
             };
-          
+
+            // Show loading state
+            const submitBtn = document.querySelector(".submit-btn");
+            const originalBtnText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner">⏳</span> Processing...';
+            submitBtn.disabled = true;
         
             fetch("https://hosting-page.onrender.com/update-excel", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(data)
             })
-            .then(response => {
+            .then(async response => {
                 if (!response.ok) {
-                    throw new Error("Network response was not ok");
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || errorData.details || "Server responded with an error");
                 }
                 return response.json();
             })
             .then(files => {
+                if (!files || !files.pdfPath || !files.excelPath) {
+                    throw new Error("Server response was incomplete");
+                }
+                
                 // Enable the download buttons
                 document.getElementById("downloadPdf").disabled = false;
                 document.getElementById("downloadExcel").disabled = false;
@@ -251,8 +261,13 @@
                 showPopup("Submitted successfully!");
             })
             .catch(error => {
-                console.error("❌ Error:", error);
-                showPopup("Error generating files. Please try again.", true);
+                console.error("❌ Full error:", error);
+                showPopup(`Error: ${error.message}`, true);
+            })
+            .finally(() => {
+                // Restore button state
+                submitBtn.innerHTML = originalBtnText;
+                submitBtn.disabled = false;
             });
         });
 
@@ -267,6 +282,8 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+            } else {
+                showPopup("No PDF file available. Please submit the form first.", true);
             }
         });
 
@@ -281,6 +298,8 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+            } else {
+                showPopup("No Excel file available. Please submit the form first.", true);
             }
         });
     </script>
