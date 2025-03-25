@@ -196,6 +196,33 @@
             }, 2000);
         }
 
+        // Frontend Download Handler Update
+        document.getElementById("downloadPdf").addEventListener("click", function() {
+    const url = this.getAttribute("data-url");
+    const filename = this.getAttribute("download") || "Certificate.pdf";
+    
+    if (!url) {
+        showPopup("Please submit the form first to generate the PDF", true);
+        return;
+    }
+
+    // Create a temporary anchor tag to trigger download
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    
+    // This will make the browser download to default downloads location
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+        // Clean up after some time
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+        }, 100);
+    });
+        
+
         // Add event listeners for serial number validation
         document.getElementById("serialNo").addEventListener("input", validateSerialNumber);
         document.getElementById("serialNo").addEventListener("blur", validateSerialNumber);
