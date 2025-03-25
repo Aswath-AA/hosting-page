@@ -61,11 +61,13 @@ app.post("/update-excel", async (req, res) => {
         const excelFilePath = path.join(exportsDir, `${sanitizedSerialNo}_Certificate.xlsx`);
         const pdfFilePath = path.join(exportsDir, `${sanitizedSerialNo}_Certificate.pdf`);
 
-        // Check if Template Exists
-        if (!fs.existsSync(templatePath)) {
-            console.error("❌ Excel template not found:", templatePath);
-            return res.status(404).json({ message: "Excel template not found!" });
-        }
+     if (!fs.existsSync(templatePath)) {
+    console.error(`Template file missing: ${templatePath}`);
+    return res.status(400).json({ 
+        error: "Template not found",
+        details: `Please upload ${templateName} to the templates directory`
+    });
+}
 
         // Load Excel Template
         const workbook = new ExcelJS.Workbook();
@@ -83,11 +85,31 @@ app.post("/update-excel", async (req, res) => {
         console.log("✅ Excel file updated from", templateName);
 
         // Convert using Python (preferred method)
-        try {
-            await convertExcelToPDFWithPython(excelFilePath, pdfFilePath);
-        } catch (pythonError) {
-            await fallbackHTMLToPDFConversion(worksheet, req.body, req.files, pdfFilePath);
-        }
+       // Replace convertExcelToPDFWithPython with this:
+async function convertExcelToPDF(excelPath, pdfPath) {
+    try {
+        // Method 1: Use libreoffice (install in Render build script)
+        await execPromise(`libreoffice --headless --convert-to pdf "${excelPath}" --outdir "${path.dirname(pdfPath)}"`);
+        console.log("✅ PDF generated via LibreOffice");
+    } catch (error) {
+        console.error("❌ LibreOffice failed, falling back to HTML-to-PDF");
+        await fallbackHTMLToPDFConversion(excelPath, pdfPath);
+    }
+}
+
+// Add this fallback function
+async function fallbackHTMLToPDFConversion(excelPath, pdfPath) {
+    const pdf = require('html-pdf');
+    // Simple fallback - in a real app, you'd generate proper HTML from the Excel data
+    const html = `<h1>Certificate</h1><p>Generated from ${path.basename(excelPath)}</p>`;
+    
+    await new Promise((resolve, reject) => {
+        pdf.create(html).toFile(pdfPath, (err, res) => {
+            if (err) reject(err);
+            else resolve(res);
+        });
+    });
+}
 
         // Return File Paths with serial number in filename
         res.json({ 
