@@ -82,13 +82,6 @@ app.post("/update-excel", async (req, res) => {
         await workbook.xlsx.writeFile(excelFilePath);
         console.log("✅ Excel file updated from", templateName);
 
-        // Convert using Python (preferred method)
-        try {
-            await convertExcelToPDFWithPython(excelFilePath, pdfFilePath);
-        } catch (pythonError) {
-            console.warn("Python conversion failed, falling back to Puppeteer:", pythonError);
-        }
-
         // Return File Paths with serial number in filename
         res.json({ 
             excelPath: `/exports/${sanitizedSerialNo}_Certificate.xlsx`, 
