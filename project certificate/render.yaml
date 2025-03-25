@@ -2,3 +2,4 @@ build:
   commands:
     - sudo apt-get update
     - npm install
+    - npm install exceljs pdfkit
