@@ -4,7 +4,6 @@ const bodyParser = require("body-parser");
 const fs = require("fs");
 const path = require("path");
 const ExcelJS = require("exceljs");
-const puppeteer = require("puppeteer");
 const multer = require("multer");
 const { exec } = require('child_process');
 const util = require('util');
@@ -169,55 +168,6 @@ if __name__ == "__main__":
     console.log("✅ PDF file generated with Python:", pdfPath);
 }
 
-// Fallback HTML to PDF conversion
-async function fallbackHTMLToPDFConversion(worksheet, formData, files, pdfFilePath) {
-    console.log("⚠️ Using Puppeteer fallback for PDF generation");
-    const htmlContent = await convertExcelToCleanHTML(worksheet, formData, files);
-    const htmlFilePath = path.join(exportsDir, "temp.html");
-    fs.writeFileSync(htmlFilePath, htmlContent);
-    await convertHTMLToPDF(htmlFilePath, pdfFilePath);
-}
-
-// Function to convert Excel data to clean HTML
-async function convertExcelToCleanHTML(worksheet, formData, files) {
-    let htmlContent = "<html><head><style>table { border-collapse: collapse; width: 100%; } td { border: 1px solid #ddd; padding: 8px; }</style></head><body><table>";
-    worksheet.eachRow((row, rowNumber) => {
-        htmlContent += "<tr>";
-        row.eachCell((cell, colNumber) => {
-            htmlContent += `<td>${cell.value || ""}</td>`;
-        });
-        htmlContent += "</tr>";
-    });
-    htmlContent += "</table></body></html>";
-    return htmlContent;
-}
-
-// Function to convert HTML to PDF using Puppeteer
-async function convertHTMLToPDF(htmlFilePath, pdfFilePath) {
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    const page = await browser.newPage();
-    await page.goto(`file://${htmlFilePath}`, { waitUntil: "networkidle0" });
-    await page.pdf({ 
-        path: pdfFilePath, 
-        format: "A4",
-        margin: {
-            top: '20mm',
-            right: '20mm',
-            bottom: '20mm',
-            left: '20mm'
-        }
-    });
-    await browser.close();
-    console.log("✅ PDF file generated with Puppeteer:", pdfFilePath);
-}
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'healthy' });
-});
 
 // Start Server
 const PORT = process.env.PORT || 3000;
