@@ -256,7 +256,7 @@ document.getElementById("serialNo").addEventListener("paste", function(e) {
                 year: document.getElementById("year").value
             };
         
-            fetch("http://192.168.156.89:3000/update-excel", {
+            fetch("/update-excel", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(data)
