@@ -130,48 +130,55 @@ app.post("/update-excel", async (req, res) => {
 });
 
 // Enhanced PDF conversion function with multiple fallbacks
-async function convertExcelToPDF(excelPath, pdfPath) {
+async function convertExcelToPDF(excelPath, pdfPath, formData) {
+    console.log(`Attempting to convert ${excelPath} to PDF`);
+    
+    // Method 1: Try LibreOffice first
     try {
-        console.log(`Attempting to convert ${excelPath} to PDF`);
+        console.log('Trying LibreOffice conversion...');
+        await execPromise(`libreoffice --headless --convert-to pdf "${excelPath}" --outdir "${path.dirname(pdfPath)}"`);
         
-        // Method 1: Try LibreOffice first (works on Linux/Windows/macOS)
-        try {
-            console.log('Trying LibreOffice conversion...');
-            await execPromise(`libreoffice --headless --convert-to pdf "${excelPath}" --outdir "${path.dirname(pdfPath)}"`);
+        // Verify and rename the output
+        const tempPdf = path.join(
+            path.dirname(pdfPath),
+            path.basename(excelPath).replace('.xlsx', '.pdf')
+        );
+        
+        if (fs.existsSync(tempPdf)) {
+            fs.renameSync(tempPdf, pdfPath);
             console.log('✅ PDF generated via LibreOffice');
-            
-            // Verify the file was created
-            if (fs.existsSync(pdfPath)) {
-                return true;
-            }
-        } catch (libreOfficeError) {
-            console.warn('⚠️ LibreOffice failed:', libreOfficeError.message);
+            return true;
         }
-        
-        // Method 2: Try Python script (Windows with Excel installed)
-        try {
-            console.log('Trying Python conversion...');
-            const pythonSuccess = await convertExcelToPDFWithPython(excelPath, pdfPath);
-            if (pythonSuccess && fs.existsSync(pdfPath)) {
-                return true;
-            }
-        } catch (pythonError) {
-            console.warn('⚠️ Python conversion failed:', pythonError.message);
-        }
-        
-        // Method 3: Fallback to HTML-to-PDF
-        console.log('Falling back to HTML-to-PDF');
-        try {
-            await fallbackHTMLToPDFConversion(excelPath, pdfPath);
-            return fs.existsSync(pdfPath);
-        } catch (htmlPdfError) {
-            console.error('⚠️ HTML-to-PDF failed:', htmlPdfError.message);
-            return false;
-        }
-    } catch (error) {
-        console.error('❌ All PDF conversion methods failed:', error);
-        return false;
+    } catch (libreOfficeError) {
+        console.warn('⚠️ LibreOffice failed:', libreOfficeError.message);
     }
+    
+    // Method 2: Try Python script
+    try {
+        console.log('Trying Python conversion...');
+        const pythonSuccess = await convertExcelToPDFWithPython(excelPath, pdfPath);
+        if (pythonSuccess) {
+            console.log('✅ PDF generated via Python');
+            return true;
+        }
+    } catch (pythonError) {
+        console.warn('⚠️ Python conversion failed:', pythonError.message);
+    }
+    
+    // Method 3: Fallback to HTML-to-PDF
+    console.log('Falling back to HTML-to-PDF');
+    try {
+        await fallbackHTMLToPDFConversion(excelPath, pdfPath, formData);
+        if (fs.existsSync(pdfPath)) {
+            console.log('✅ PDF generated via HTML fallback');
+            return true;
+        }
+    } catch (htmlPdfError) {
+        console.error('⚠️ HTML-to-PDF failed:', htmlPdfError.message);
+    }
+    
+    console.error('❌ All PDF conversion methods failed');
+    return false;
 }
 
 // HTML-to-PDF fallback conversion
