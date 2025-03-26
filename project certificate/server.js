@@ -164,62 +164,6 @@ async function convertExcelToPDF(excelPath, pdfPath, formData) {
     } catch (pythonError) {
         console.warn('⚠️ Python conversion failed:', pythonError.message);
     }
-    
-    // Method 3: Fallback to HTML-to-PDF
-    console.log('Falling back to HTML-to-PDF');
-    try {
-        await fallbackHTMLToPDFConversion(excelPath, pdfPath, formData);
-        if (fs.existsSync(pdfPath)) {
-            console.log('✅ PDF generated via HTML fallback');
-            return true;
-        }
-    } catch (htmlPdfError) {
-        console.error('⚠️ HTML-to-PDF failed:', htmlPdfError.message);
-    }
-    
-    console.error('❌ All PDF conversion methods failed');
-    return false;
-}
-
-// HTML-to-PDF fallback conversion
-async function fallbackHTMLToPDFConversion(excelPath, pdfPath) {
-    const pdf = require('html-pdf');
-    const html = `
-        <html>
-            <head>
-                <style>
-                    body { font-family: Arial, sans-serif; margin: 2cm; }
-                    h1 { color: #0066cc; }
-                    table { border-collapse: collapse; width: 100%; }
-                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                </style>
-            </head>
-            <body>
-                <h1>Certificate of Conformity</h1>
-                <p>This is an automatically generated certificate based on the Excel file:</p>
-                <p><strong>${path.basename(excelPath)}</strong></p>
-                <p>Please note: This is a simplified version. The full certificate is available in Excel format.</p>
-            </body>
-        </html>
-    `;
-    
-    const options = {
-        format: 'A4',
-        border: {
-            top: '1cm',
-            right: '1cm',
-            bottom: '1cm',
-            left: '1cm'
-        }
-    };
-    
-    return new Promise((resolve, reject) => {
-        pdf.create(html, options).toFile(pdfPath, (err, res) => {
-            if (err) reject(err);
-            else resolve(res);
-        });
-    });
-}
 
 // Robust Python-based Excel to PDF conversion
 async function convertExcelToPDFWithPython(excelPath, pdfPath) {
