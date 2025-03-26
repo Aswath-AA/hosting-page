@@ -11,5 +11,9 @@
     "pdf-lib": "^1.17.1",
     "pdfmake": "^0.2.18",
     "xlsx": "^0.18.5"
+    "scripts": {
+    "start": "node server.js",
+    "render-build": "chmod +x render-build.sh && ./render-build.sh"
+}
   }
 }
