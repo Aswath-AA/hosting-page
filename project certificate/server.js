@@ -112,7 +112,7 @@ app.post("/update-excel", async (req, res) => {
         };
 
         if (pdfSuccess) {
-            response.pdfPath = `/exports/${sanitizedSerialNo}_Certificate.pdf`;
+            response.pdfPath = `${sanitizedSerialNo}_Certificate.pdf`;
         } else {
             response.pdfError = pdfError || "PDF generation failed";
         }
