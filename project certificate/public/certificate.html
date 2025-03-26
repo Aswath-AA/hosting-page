@@ -203,77 +203,69 @@
         document.getElementById("serialNo").addEventListener("input", validateSerialNumber);
         document.getElementById("serialNo").addEventListener("blur", validateSerialNumber);
 
-        document.getElementById("docForm").addEventListener("submit", function(event) {
-            // Validate before submission
-            validateSerialNumber();
-            
-            if (!document.getElementById("serialNo").checkValidity()) {
-                document.getElementById("serialNoError").style.display = "block";
-                event.preventDefault();
-                return;
+            document.getElementById("docForm").addEventListener("submit", function(event) {
+        event.preventDefault();
+        
+        validateSerialNumber();
+        if (!document.getElementById("serialNo").checkValidity()) {
+            document.getElementById("serialNoError").style.display = "block";
+            return;
+        }
+        
+        const serialNo = document.getElementById("serialNo").value;
+        const data = {
+            mode: document.getElementById("mode").value,
+            serialNo: serialNo,
+            testedDate: document.getElementById("testedDate").value,
+            year: document.getElementById("year").value
+        };
+    
+        // Show loading state
+        const submitBtn = document.querySelector(".submit-btn");
+        const originalBtnText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<span class="spinner">⏳</span> Processing...';
+        submitBtn.disabled = true;
+    
+        fetch("/update-excel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+        })
+        .then(async response => {
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || errorData.details || "Server responded with an error");
             }
+            return response.json();
+        })
+        .then(files => {
+            // Always enable Excel download
+            document.getElementById("downloadExcel").disabled = false;
+            const excelFilename = `${serialNo}_Certificate.xlsx`;
+            document.getElementById("downloadExcel").setAttribute("data-url", files.excelPath);
+            document.getElementById("downloadExcel").setAttribute("download", excelFilename);
             
-            event.preventDefault(); // Prevent page reload
-        
-            const serialNo = document.getElementById("serialNo").value;
-            const data = {
-                mode: document.getElementById("mode").value,
-                serialNo: serialNo,
-                testedDate: document.getElementById("testedDate").value,
-                year: document.getElementById("year").value
-            };
-
-            // Show loading state
-            const submitBtn = document.querySelector(".submit-btn");
-            const originalBtnText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<span class="spinner">⏳</span> Processing...';
-            submitBtn.disabled = true;
-        
-            fetch("https://hosting-page.onrender.com/update-excel", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data)
-            })
-            .then(async response => {
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.message || errorData.details || "Server responded with an error");
-                }
-                return response.json();
-            })
-            .then(files => {
-                if (!files || !files.pdfPath || !files.excelPath) {
-                    throw new Error("Server response was incomplete");
-                }
-                
-                // Enable the download buttons
+            // Handle PDF result
+            if (files.pdfPath) {
                 document.getElementById("downloadPdf").disabled = false;
-                document.getElementById("downloadExcel").disabled = false;
-        
-                // Set file paths and custom filenames
                 const pdfFilename = `${serialNo}_Certificate.pdf`;
-                const excelFilename = `${serialNo}_Certificate.xlsx`;
-                
                 document.getElementById("downloadPdf").setAttribute("data-url", files.pdfPath);
-                document.getElementById("downloadExcel").setAttribute("data-url", files.excelPath);
-                
                 document.getElementById("downloadPdf").setAttribute("download", pdfFilename);
-                document.getElementById("downloadExcel").setAttribute("download", excelFilename);
-                
-                // Show success popup
-                showPopup("Submitted successfully!");
-            })
-            .catch(error => {
-                console.error("❌ Full error:", error);
-                showPopup(`Error: ${error.message}`, true);
-            })
-            .finally(() => {
-                // Restore button state
-                submitBtn.innerHTML = originalBtnText;
-                submitBtn.disabled = false;
-            });
+                showPopup("Submitted successfully! Both Excel and PDF are ready.");
+            } else {
+                document.getElementById("downloadPdf").disabled = true;
+                showPopup(`Excel generated successfully but PDF failed: ${files.pdfError || "Unknown error"}`, true);
+            }
+        })
+        .catch(error => {
+            console.error("❌ Full error:", error);
+            showPopup(`Error: ${error.message}`, true);
+        })
+        .finally(() => {
+            submitBtn.innerHTML = originalBtnText;
+            submitBtn.disabled = false;
         });
-
+});
         // Handle PDF download
         document.getElementById("downloadPdf").addEventListener("click", function() {
             const url = this.getAttribute("data-url");
