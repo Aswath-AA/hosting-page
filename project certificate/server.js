@@ -48,7 +48,7 @@ app.get("/", (req, res) => {
 });
 
 // Handle form submission
-app.post("http://192.168.156.89:3000/update-excel", async (req, res) => {
+app.post("/update-excel", async (req, res) => {
     try {
         console.log("📌 Received Form Data:", req.body);
 
