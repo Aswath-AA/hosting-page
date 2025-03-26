@@ -156,21 +156,57 @@
             validateSerialNumber();
         });
 
-        // Validate serial number input
+        // Validate serial number input with auto-uppercase conversion
         function validateSerialNumber() {
             const serialNoInput = document.getElementById("serialNo");
             const errorElement = document.getElementById("serialNoError");
-            const serialNo = serialNoInput.value;
+            let serialNo = serialNoInput.value;
             
-            // Check if input is exactly 10 alphanumeric characters
-            if (serialNo.length > 0 && (serialNo.length !== 10 || !/^[A-Za-z0-9]{10}$/.test(serialNo))) {
+            // Auto-format the input as user types
+            if (serialNo.length > 0) {
+                // Process first 4 chars (letters only, uppercase)
+                let firstFour = serialNo.slice(0, 4).replace(/[^a-zA-Z]/g, '').toUpperCase();
+                
+                // Process last 6 chars (numbers only)
+                let lastSix = serialNo.slice(4).replace(/\D/g, '');
+                
+                // Combine them (max 4 letters + max 6 numbers)
+                serialNoInput.value = firstFour.slice(0, 4) + lastSix.slice(0, 6);
+                serialNo = serialNoInput.value;
+            }
+            
+            // Validate the pattern: 4 uppercase letters followed by 6 numbers
+            if (serialNo.length > 0 && (serialNo.length !== 10 || !/^[A-Z]{4}\d{6}$/.test(serialNo))) {
                 errorElement.style.display = "block";
-                serialNoInput.setCustomValidity("Serial No must be 10 alphanumeric characters");
+                serialNoInput.setCustomValidity("Format: 4 letters (A-Z) followed by 6 numbers (0-9)");
             } else {
                 errorElement.style.display = "none";
                 serialNoInput.setCustomValidity("");
             }
         }
+        
+        // Enhanced event listeners
+        document.getElementById("serialNo").addEventListener("input", function(e) {
+            // Restrict input to only letters and numbers
+            e.target.value = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
+            validateSerialNumber();
+        });
+        
+        document.getElementById("serialNo").addEventListener("paste", function(e) {
+            // Clean pasted data
+            setTimeout(() => {
+                e.target.value = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
+                validateSerialNumber();
+            }, 0);
+        });
+        
+
+// Add event listeners for real-time validation
+document.getElementById("serialNo").addEventListener("input", validateSerialNumber);
+document.getElementById("serialNo").addEventListener("paste", function(e) {
+    // Handle paste events with a slight delay to allow the paste to complete
+    setTimeout(validateSerialNumber, 0);
+});
 
         // Enhanced Popup function
         function showPopup(message, isError = false) {
@@ -196,76 +232,65 @@
             }, 2000);
         }
 
-       
-        
-
         // Add event listeners for serial number validation
         document.getElementById("serialNo").addEventListener("input", validateSerialNumber);
         document.getElementById("serialNo").addEventListener("blur", validateSerialNumber);
 
-            document.getElementById("docForm").addEventListener("submit", function(event) {
-        event.preventDefault();
-        
-        validateSerialNumber();
-        if (!document.getElementById("serialNo").checkValidity()) {
-            document.getElementById("serialNoError").style.display = "block";
-            return;
-        }
-        
-        const serialNo = document.getElementById("serialNo").value;
-        const data = {
-            mode: document.getElementById("mode").value,
-            serialNo: serialNo,
-            testedDate: document.getElementById("testedDate").value,
-            year: document.getElementById("year").value
-        };
-    
-        // Show loading state
-        const submitBtn = document.querySelector(".submit-btn");
-        const originalBtnText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<span class="spinner">⏳</span> Processing...';
-        submitBtn.disabled = true;
-    
-        fetch("/update-excel", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data)
-        })
-        .then(async response => {
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || errorData.details || "Server responded with an error");
-            }
-            return response.json();
-        })
-        .then(files => {
-            // Always enable Excel download
-            document.getElementById("downloadExcel").disabled = false;
-            const excelFilename = `${serialNo}_Certificate.xlsx`;
-            document.getElementById("downloadExcel").setAttribute("data-url", files.excelPath);
-            document.getElementById("downloadExcel").setAttribute("download", excelFilename);
+        document.getElementById("docForm").addEventListener("submit", function(event) {
+            // Validate before submission
+            validateSerialNumber();
             
-            // Handle PDF result
-            if (files.pdfPath) {
-                document.getElementById("downloadPdf").disabled = false;
-                const pdfFilename = `${serialNo}_Certificate.pdf`;
-                document.getElementById("downloadPdf").setAttribute("data-url", files.pdfPath);
-                document.getElementById("downloadPdf").setAttribute("download", pdfFilename);
-                showPopup("Submitted successfully! Both Excel and PDF are ready.");
-            } else {
-                document.getElementById("downloadPdf").disabled = true;
-                showPopup(`Excel generated successfully but PDF failed: ${files.pdfError || "Unknown error"}`, true);
+            if (!document.getElementById("serialNo").checkValidity()) {
+                document.getElementById("serialNoError").style.display = "block";
+                event.preventDefault();
+                return;
             }
-        })
-        .catch(error => {
-            console.error("❌ Full error:", error);
-            showPopup(`Error: ${error.message}`, true);
-        })
-        .finally(() => {
-            submitBtn.innerHTML = originalBtnText;
-            submitBtn.disabled = false;
+            
+            event.preventDefault(); // Prevent page reload
+        
+            const serialNo = document.getElementById("serialNo").value;
+            const data = {
+                mode: document.getElementById("mode").value,
+                serialNo: serialNo,
+                testedDate: document.getElementById("testedDate").value,
+                year: document.getElementById("year").value
+            };
+        
+            fetch("http://192.168.156.89:3000/update-excel", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Network response was not ok");
+                }
+                return response.json();
+            })
+            .then(files => {
+                // Enable the download buttons
+                document.getElementById("downloadPdf").disabled = false;
+                document.getElementById("downloadExcel").disabled = false;
+        
+                // Set file paths and custom filenames
+                const pdfFilename = `${serialNo}_Certificate.pdf`;
+                const excelFilename = `${serialNo}_Certificate.xlsx`;
+                
+                document.getElementById("downloadPdf").setAttribute("data-url", files.pdfPath);
+                document.getElementById("downloadExcel").setAttribute("data-url", files.excelPath);
+                
+                document.getElementById("downloadPdf").setAttribute("download", pdfFilename);
+                document.getElementById("downloadExcel").setAttribute("download", excelFilename);
+                
+                // Show success popup
+                showPopup("Submitted successfully!");
+            })
+            .catch(error => {
+                console.error("❌ Error:", error);
+                showPopup("Error generating files. Please try again.", true);
+            });
         });
-});
+
         // Handle PDF download
         document.getElementById("downloadPdf").addEventListener("click", function() {
             const url = this.getAttribute("data-url");
@@ -277,8 +302,6 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-            } else {
-                showPopup("No PDF file available. Please submit the form first.", true);
             }
         });
 
@@ -293,8 +316,6 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-            } else {
-                showPopup("No Excel file available. Please submit the form first.", true);
             }
         });
     </script>
