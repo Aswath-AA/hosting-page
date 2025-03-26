@@ -37,12 +37,8 @@ const pythonScriptsDir = path.join(__dirname, "python_scripts");
     }
 });
 
-// Serve static files with download headers
-app.use("/exports", express.static(exportsDir, {
-    setHeaders: (res, filePath) => {
-        res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
-    }
-}));
+// Serve static files
+app.use("/exports", express.static(exportsDir));
 app.use("/uploads", express.static(uploadsDir));
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -65,13 +61,13 @@ app.post("/update-excel", async (req, res) => {
         const excelFilePath = path.join(exportsDir, `${sanitizedSerialNo}_Certificate.xlsx`);
         const pdfFilePath = path.join(exportsDir, `${sanitizedSerialNo}_Certificate.pdf`);
 
-        if (!fs.existsSync(templatePath)) {
-            console.error(`Template file missing: ${templatePath}`);
-            return res.status(400).json({ 
-                error: "Template not found",
-                details: `Please upload ${templateName} to the templates directory`
-            });
-        }
+     if (!fs.existsSync(templatePath)) {
+    console.error(`Template file missing: ${templatePath}`);
+    return res.status(400).json({ 
+        error: "Template not found",
+        details: `Please upload ${templateName} to the templates directory`
+    });
+}
 
         // Load Excel Template
         const workbook = new ExcelJS.Workbook();
@@ -88,17 +84,34 @@ app.post("/update-excel", async (req, res) => {
         await workbook.xlsx.writeFile(excelFilePath);
         console.log("✅ Excel file updated from", templateName);
 
-        // Attempt PDF conversion with multiple fallbacks
-        const pdfSuccess = await convertExcelToPDF(excelFilePath, pdfFilePath);
-        
-        if (!pdfSuccess) {
-            console.warn("PDF generation failed, returning Excel only");
-            return res.json({ 
-                excelPath: `/exports/${sanitizedSerialNo}_Certificate.xlsx`,
-                serialNo: req.body.serialNo
-            });
-        }
+        // Convert using Python (preferred method)
+       // Replace convertExcelToPDFWithPython with this:
+async function convertExcelToPDF(excelPath, pdfPath) {
+    try {
+        // Method 1: Use libreoffice (install in Render build script)
+        await execPromise(`libreoffice --headless --convert-to pdf "${excelPath}" --outdir "${path.dirname(pdfPath)}"`);
+        console.log("✅ PDF generated via LibreOffice");
+    } catch (error) {
+        console.error("❌ LibreOffice failed, falling back to HTML-to-PDF");
+        await fallbackHTMLToPDFConversion(excelPath, pdfPath);
+    }
+}
 
+// Add this fallback function
+async function fallbackHTMLToPDFConversion(excelPath, pdfPath) {
+    const pdf = require('html-pdf');
+    // Simple fallback - in a real app, you'd generate proper HTML from the Excel data
+    const html = `<h1>Certificate</h1><p>Generated from ${path.basename(excelPath)}</p>`;
+    
+    await new Promise((resolve, reject) => {
+        pdf.create(html).toFile(pdfPath, (err, res) => {
+            if (err) reject(err);
+            else resolve(res);
+        });
+    });
+}
+
+        // Return File Paths with serial number in filename
         res.json({ 
             excelPath: `/exports/${sanitizedSerialNo}_Certificate.xlsx`, 
             pdfPath: `/exports/${sanitizedSerialNo}_Certificate.pdf`,
@@ -107,114 +120,24 @@ app.post("/update-excel", async (req, res) => {
 
     } catch (error) {
         console.error("❌ Error processing request:", error);
-        res.status(500).json({ 
-            message: "Server error while processing the request!",
-            details: error.message 
-        });
+        res.status(500).json({ message: "Server error while processing the request!" });
     }
 });
 
-// Enhanced PDF conversion function with multiple fallbacks
-async function convertExcelToPDF(excelPath, pdfPath) {
-    try {
-        console.log(`Attempting to convert ${excelPath} to PDF`);
-        
-        // Method 1: Try LibreOffice (works on Linux/Windows)
-        try {
-            console.log('Trying LibreOffice conversion...');
-            await execPromise(`libreoffice --headless --convert-to pdf "${excelPath}" --outdir "${path.dirname(pdfPath)}"`);
-            console.log('✅ PDF generated via LibreOffice');
-            
-            // Verify the file was created
-            if (fs.existsSync(pdfPath)) {
-                return true;
-            }
-        } catch (libreOfficeError) {
-            console.warn('⚠️ LibreOffice failed:', libreOfficeError.message);
-        }
-        
-        // Method 2: Try Python script (Windows with Excel installed)
-        try {
-            console.log('Trying Python conversion...');
-            const pythonSuccess = await convertExcelToPDFWithPython(excelPath, pdfPath);
-            if (pythonSuccess && fs.existsSync(pdfPath)) {
-                return true;
-            }
-        } catch (pythonError) {
-            console.warn('⚠️ Python conversion failed:', pythonError.message);
-        }
-        
-        // Method 3: Fallback to HTML-to-PDF
-        console.log('Falling back to HTML-to-PDF');
-        try {
-            await fallbackHTMLToPDFConversion(excelPath, pdfPath);
-            return fs.existsSync(pdfPath);
-        } catch (htmlPdfError) {
-            console.error('⚠️ HTML-to-PDF failed:', htmlPdfError.message);
-            return false;
-        }
-    } catch (error) {
-        console.error('❌ All PDF conversion methods failed:', error);
-        return false;
-    }
-}
-
-// HTML-to-PDF fallback conversion
-async function fallbackHTMLToPDFConversion(excelPath, pdfPath) {
-    const pdf = require('html-pdf');
-    const html = `
-        <html>
-            <head>
-                <style>
-                    body { font-family: Arial, sans-serif; margin: 2cm; }
-                    h1 { color: #0066cc; }
-                    table { border-collapse: collapse; width: 100%; }
-                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                </style>
-            </head>
-            <body>
-                <h1>Certificate of Conformity</h1>
-                <p>This is an automatically generated certificate based on the Excel file:</p>
-                <p><strong>${path.basename(excelPath)}</strong></p>
-                <p>Please note: This is a simplified version. The full certificate is available in Excel format.</p>
-            </body>
-        </html>
-    `;
-    
-    const options = {
-        format: 'A4',
-        border: {
-            top: '1cm',
-            right: '1cm',
-            bottom: '1cm',
-            left: '1cm'
-        }
-    };
-    
-    return new Promise((resolve, reject) => {
-        pdf.create(html, options).toFile(pdfPath, (err, res) => {
-            if (err) reject(err);
-            else resolve(res);
-        });
-    });
-}
-
-// Python-based Excel to PDF conversion (Windows only)
+// Python-based Excel to PDF conversion
 async function convertExcelToPDFWithPython(excelPath, pdfPath) {
-    try {
-        const pythonScript = path.join(pythonScriptsDir, "excel_to_pdf.py");
-        
-        // Create the python script if it doesn't exist
-        if (!fs.existsSync(pythonScript)) {
-            const pythonCode = `
+    const pythonScript = path.join(pythonScriptsDir, "excel_to_pdf.py");
+    
+    // Create the python script if it doesn't exist
+    if (!fs.existsSync(pythonScript)) {
+        const pythonCode = `
 import win32com.client as win32
 import os
 import sys
-import time
 
-def convert_excel_to_pdf(input_path, output_path, timeout=120):
+def convert_excel_to_pdf(input_path, output_path):
     excel = None
-    start_time = time.time()
+    workbook = None
     try:
         excel = win32.gencache.EnsureDispatch('Excel.Application')
         excel.Visible = False
@@ -236,12 +159,6 @@ def convert_excel_to_pdf(input_path, output_path, timeout=120):
             IgnorePrintAreas=False
         )
         
-        # Wait for file to be created
-        while not os.path.exists(output_path):
-            if time.time() - start_time > timeout:
-                raise TimeoutError("PDF generation timed out")
-            time.sleep(1)
-        
         return True
     except Exception as e:
         print(f"Conversion error: {str(e)}", file=sys.stderr)
@@ -262,47 +179,20 @@ if __name__ == "__main__":
         print(f"Error: {str(e)}", file=sys.stderr)
         sys.exit(1)
 `;
-            fs.writeFileSync(pythonScript, pythonCode);
-        }
-
-        const { stdout, stderr } = await execPromise(`python "${pythonScript}" "${excelPath}" "${pdfPath}"`);
-        if (stderr) {
-            throw new Error(stderr);
-        }
-        return fs.existsSync(pdfPath);
-    } catch (error) {
-        console.error("Python conversion error:", error);
-        return false;
+        fs.writeFileSync(pythonScript, pythonCode);
     }
+
+    const { stdout, stderr } = await execPromise(`python "${pythonScript}" "${excelPath}" "${pdfPath}"`);
+    if (stderr) {
+        throw new Error(stderr);
+    }
+    console.log("✅ PDF file generated with Python:", pdfPath);
 }
 
-// File cleanup endpoint (optional)
-app.post("/cleanup", (req, res) => {
-    try {
-        const files = fs.readdirSync(exportsDir);
-        const now = Date.now();
-        const oneHour = 60 * 60 * 1000;
-        
-        files.forEach(file => {
-            const filePath = path.join(exportsDir, file);
-            const stat = fs.statSync(filePath);
-            if (now - stat.mtimeMs > oneHour) {
-                fs.unlinkSync(filePath);
-                console.log(`Deleted old file: ${file}`);
-            }
-        });
-        
-        res.json({ success: true, deleted: files.length });
-    } catch (error) {
-        console.error("Cleanup error:", error);
-        res.status(500).json({ error: "Cleanup failed", details: error.message });
-    }
-});
 
 // Start Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`Templates directory: ${templatesDir}`);
-    console.log(`Exports directory: ${exportsDir}`);
-});
+    console.log(`Python scripts directory: ${pythonScriptsDir}`);
+}); 
