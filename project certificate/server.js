@@ -65,15 +65,17 @@ app.post("/update-excel", async (req, res) => {
         const excelFilePath = path.join(exportsDir, `${sanitizedSerialNo}_Certificate.xlsx`);
         const pdfFilePath = path.join(exportsDir, `${sanitizedSerialNo}_Certificate.pdf`);
 
+        // Verify template exists
         if (!fs.existsSync(templatePath)) {
             console.error(`Template file missing: ${templatePath}`);
             return res.status(400).json({ 
+                success: false,
                 error: "Template not found",
                 details: `Please upload ${templateName} to the templates directory`
             });
         }
 
-        // Load Excel Template
+        // Load and update Excel template
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.readFile(templatePath);
         const worksheet = workbook.getWorksheet(1);
@@ -88,26 +90,36 @@ app.post("/update-excel", async (req, res) => {
         await workbook.xlsx.writeFile(excelFilePath);
         console.log("✅ Excel file updated from", templateName);
 
-        // Attempt PDF conversion with multiple fallbacks
-        const pdfSuccess = await convertExcelToPDF(excelFilePath, pdfFilePath);
+        // Attempt PDF conversion
+        let pdfSuccess = false;
+        let pdfError = null;
         
-        if (!pdfSuccess) {
-            console.warn("PDF generation failed, returning Excel only");
-            return res.json({ 
-                excelPath: `/exports/${sanitizedSerialNo}_Certificate.xlsx`,
-                serialNo: req.body.serialNo
-            });
+        try {
+            pdfSuccess = await convertExcelToPDF(excelFilePath, pdfFilePath);
+        } catch (error) {
+            console.error("PDF conversion error:", error);
+            pdfError = error.message;
         }
 
-        res.json({ 
-            excelPath: `/exports/${sanitizedSerialNo}_Certificate.xlsx`, 
-            pdfPath: `/exports/${sanitizedSerialNo}_Certificate.pdf`,
+        // Prepare response
+        const response = {
+            success: true,
+            excelPath: `/exports/${sanitizedSerialNo}_Certificate.xlsx`,
             serialNo: req.body.serialNo
-        });
+        };
+
+        if (pdfSuccess) {
+            response.pdfPath = `/exports/${sanitizedSerialNo}_Certificate.pdf`;
+        } else {
+            response.pdfError = pdfError || "PDF generation failed";
+        }
+
+        res.json(response);
 
     } catch (error) {
         console.error("❌ Error processing request:", error);
         res.status(500).json({ 
+            success: false,
             message: "Server error while processing the request!",
             details: error.message 
         });
