@@ -85,6 +85,30 @@ app.post("/update-excel", async (req, res) => {
         console.log("✅ Excel file updated from", templateName);
 
         // Convert using Python (preferred method)
+         const pdfSuccess = await convertExcelToPDF(excelFilePath, pdfFilePath);
+        
+        if (!pdfSuccess) {
+            console.warn("PDF generation failed, returning Excel only");
+            return res.json({ 
+                excelPath: `/exports/${sanitizedSerialNo}_Certificate.xlsx`,
+                serialNo: req.body.serialNo
+            });
+        }
+
+        res.json({ 
+            excelPath: `/exports/${sanitizedSerialNo}_Certificate.xlsx`, 
+            pdfPath: `/exports/${sanitizedSerialNo}_Certificate.pdf`,
+            serialNo: req.body.serialNo
+        });
+
+    } catch (error) {
+        console.error("❌ Error processing request:", error);
+        res.status(500).json({ 
+            message: "Server error while processing the request!",
+            details: error.message 
+        });
+    }
+});
        // Replace convertExcelToPDFWithPython with this:
 async function convertExcelToPDF(excelPath, pdfPath) {
     try {
